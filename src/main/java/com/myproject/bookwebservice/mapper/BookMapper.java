@@ -11,4 +11,6 @@ public interface BookMapper {
 
     Book mapToBook(BookServiceOuterClass.AddBookRequest response);
 
+    Book mapToBook(BookServiceOuterClass.UpdateBookRequest response);
+
 }
