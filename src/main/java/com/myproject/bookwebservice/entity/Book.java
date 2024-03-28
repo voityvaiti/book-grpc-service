@@ -1,8 +1,9 @@
 package com.myproject.bookwebservice.entity;
 
+import com.myproject.bookwebservice.validation.annotation.BookAuthor;
+import com.myproject.bookwebservice.validation.annotation.BookIsbn;
+import com.myproject.bookwebservice.validation.annotation.BookTitle;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,18 +25,15 @@ public class Book {
     private UUID id;
 
     @Column(name = "title")
-    @NotBlank(message = "Title is required.")
-    @Size(max = 100, message = "Title field size can't be bigger than 100.")
+    @BookTitle
     private String title;
 
     @Column(name = "author")
-    @NotBlank(message = "Author is required.")
-    @Size(max = 100, message = "Author field size can't be bigger than 100.")
+    @BookAuthor
     private String author;
 
     @Column(name = "isbn")
-    @NotBlank(message = "ISBN is required.")
-    @Size(max = 13, message = "ISBN field size can't be bigger than 13.")
+    @BookIsbn
     private String isbn;
 
     @Column(name = "quantity")
