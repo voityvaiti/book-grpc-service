@@ -1,10 +1,10 @@
-package com.myproject.bookwebservice.service;
+package com.myproject.bookwebservice.grpcService;
 
 import com.myproject.bookwebservice.BookServiceGrpc;
 import com.myproject.bookwebservice.BookServiceOuterClass;
-import com.myproject.bookwebservice.entity.Book;
+import com.myproject.bookwebservice.dto.BookDto;
 import com.myproject.bookwebservice.mapper.BookMapper;
-import com.myproject.bookwebservice.repository.BookRepository;
+import com.myproject.bookwebservice.service.abstraction.BookService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import jakarta.validation.ConstraintViolation;
@@ -14,16 +14,15 @@ import net.devh.boot.grpc.server.service.GrpcService;
 import org.mapstruct.factory.Mappers;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @GrpcService
 @RequiredArgsConstructor
-public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
+public class BookGrpcServiceImpl extends BookServiceGrpc.BookServiceImplBase {
 
-    private final BookRepository bookRepository;
+    private final BookService bookService;
     private final BookMapper bookMapper = Mappers.getMapper(BookMapper.class);
     private final Validator validator;
 
@@ -31,7 +30,7 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
     @Override
     public void getAllBooks(BookServiceOuterClass.GetAllBooksRequest request, StreamObserver<BookServiceOuterClass.GetAllBooksResponse> responseObserver) {
         try {
-            List<Book> allBooks = bookRepository.findAll();
+            List<BookDto> allBooks = bookService.getAll();
             List<BookServiceOuterClass.BookResponse> bookResponses = allBooks.stream()
                     .map(bookMapper::mapToBookResponse)
                     .collect(Collectors.toList());
@@ -51,14 +50,15 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
     @Override
     public void getBookById(BookServiceOuterClass.GetBookByIdRequest request, StreamObserver<BookServiceOuterClass.BookResponse> responseObserver) {
         try {
-            Optional<Book> optionalBook = bookRepository.findById(UUID.fromString(request.getId()));
 
-            if(optionalBook.isEmpty()) {
+            BookDto bookDto = bookService.getById(UUID.fromString(request.getId()));
+
+            if(bookDto == null) {
                 responseObserver.onError(Status.NOT_FOUND.withDescription("Book not found").asRuntimeException());
                 return;
             }
 
-            BookServiceOuterClass.BookResponse bookResponse = bookMapper.mapToBookResponse(optionalBook.get());
+            BookServiceOuterClass.BookResponse bookResponse = bookMapper.mapToBookResponse(bookDto);
 
             responseObserver.onNext(bookResponse);
             responseObserver.onCompleted();
@@ -71,16 +71,16 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
     @Override
     public void addBook(BookServiceOuterClass.AddBookRequest request, StreamObserver<BookServiceOuterClass.BookResponse> responseObserver) {
         try {
-            Book book = bookMapper.mapToBook(request);
-            Set<ConstraintViolation<Book>> violations = validator.validate(book);
+            BookDto bookDto = bookMapper.mapToBookDto(request);
+            Set<ConstraintViolation<BookDto>> violations = validator.validate(bookDto);
 
             if (!violations.isEmpty()) {
                 responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(printViolations(violations)).asRuntimeException());
                 return;
             }
 
-            Book savedBook = bookRepository.save(book);
-            BookServiceOuterClass.BookResponse bookResponse = bookMapper.mapToBookResponse(savedBook);
+            BookDto createdBook = bookService.create(bookDto);
+            BookServiceOuterClass.BookResponse bookResponse = bookMapper.mapToBookResponse(createdBook);
 
             responseObserver.onNext(bookResponse);
             responseObserver.onCompleted();
@@ -93,7 +93,7 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
     @Override
     public void updateBook(BookServiceOuterClass.UpdateBookRequest request, StreamObserver<BookServiceOuterClass.BookResponse> responseObserver) {
         try {
-            Set<ConstraintViolation<Book>> violations = validator.validate(bookMapper.mapToBook(request));
+            Set<ConstraintViolation<BookDto>> violations = validator.validate(bookMapper.mapToBookDto(request));
 
             if (!violations.isEmpty()) {
                 responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(printViolations(violations)).asRuntimeException());
@@ -101,20 +101,12 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
             }
 
             UUID bookId = UUID.fromString(request.getId());
-            Optional<Book> optionalBookToUpdate = bookRepository.findById(bookId);
+            BookDto updatedBook = bookService.update(bookId, bookMapper.mapToBookDto(request));
 
-            if(optionalBookToUpdate.isEmpty()) {
+            if(updatedBook == null) {
                 responseObserver.onError(Status.NOT_FOUND.withDescription("Book not found").asRuntimeException());
                 return;
             }
-            Book bookToUpdate = optionalBookToUpdate.get();
-
-            bookToUpdate.setTitle(request.getTitle());
-            bookToUpdate.setAuthor(request.getAuthor());
-            bookToUpdate.setIsbn(request.getIsbn());
-            bookToUpdate.setQuantity(request.getQuantity());
-
-            Book updatedBook = bookRepository.save(bookToUpdate);
             BookServiceOuterClass.BookResponse bookResponse = bookMapper.mapToBookResponse(updatedBook);
 
             responseObserver.onNext(bookResponse);
@@ -129,13 +121,7 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
     public void deleteBook(BookServiceOuterClass.DeleteBookRequest request, StreamObserver<BookServiceOuterClass.DeleteBookResponse> responseObserver) {
         try {
             UUID bookId = UUID.fromString(request.getId());
-            Optional<Book> optionalBook = bookRepository.findById(bookId);
-
-            if(optionalBook.isEmpty()) {
-                responseObserver.onError(Status.NOT_FOUND.withDescription("Book not found").asRuntimeException());
-                return;
-            }
-            bookRepository.deleteById(bookId);
+            bookService.delete(bookId);
 
             responseObserver.onNext(BookServiceOuterClass.DeleteBookResponse.newBuilder().setSuccess(true).build());
             responseObserver.onCompleted();
@@ -145,9 +131,9 @@ public class BookServiceImpl extends BookServiceGrpc.BookServiceImplBase {
         }
     }
 
-    private String printViolations(Set<ConstraintViolation<Book>> violations) {
+    private String printViolations(Set<ConstraintViolation<BookDto>> violations) {
         StringBuilder sb = new StringBuilder();
-        for (ConstraintViolation<Book> violation : violations) {
+        for (ConstraintViolation<BookDto> violation : violations) {
             sb.append(violation.getMessage())
                     .append(" ");
         }
