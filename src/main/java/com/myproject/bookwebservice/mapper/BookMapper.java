@@ -10,12 +10,15 @@ public interface BookMapper {
 
     BookDto mapToBookDto(Book book);
 
+    BookDto mapToBookDto(BookServiceOuterClass.AddBookRequest request);
+
+    BookDto mapToBookDto(BookServiceOuterClass.UpdateBookRequest request);
+
+    BookDto mapToBookDto(BookServiceOuterClass.BookResponse response);
+
     Book mapToBook(BookDto bookDto);
 
     BookServiceOuterClass.BookResponse mapToBookResponse(BookDto bookDto);
 
-    BookDto mapToBookDto(BookServiceOuterClass.AddBookRequest request);
-
-    BookDto mapToBookDto(BookServiceOuterClass.UpdateBookRequest request);
 
 }
